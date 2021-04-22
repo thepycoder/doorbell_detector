@@ -1,0 +1,10 @@
+version: 2.3
+
+services:
+  model_server:
+    build:
+      context: ./model_server
+      dockerfile: Dockerfile
+    volumes:
+      - "data:/app/triggers"
+      - "models:/app/models"
