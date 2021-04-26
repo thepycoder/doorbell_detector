@@ -1,10 +1,33 @@
-version: 2.3
+version: "2.3"
 
 services:
   model_server:
     build:
       context: ./model_server
       dockerfile: Dockerfile
+    devices:
+      - "/dev/snd:/dev/snd"
     volumes:
-      - "data:/app/triggers"
+      - "data:/app/data"
       - "models:/app/models"
+      - "labeled_data:/app/labeled_data"
+
+volumes:
+  data:
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: './data/original'
+  labeled_data:
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: './data/labeled'
+  models:
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: './models'

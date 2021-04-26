@@ -16,6 +16,7 @@ import sounddevice as sd
 import soundfile as sf
 
 from creds import app_token, client_token
+from config import MODEL
 
 sd.default.device = 1
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -45,7 +46,7 @@ class PushWorker(Thread):
 
 class SaveWorker(Thread):
 
-    def __init__(self, save_queue, location='triggers', sr=22050):
+    def __init__(self, save_queue, location='/app/labeled_data', sr=22050):
         Thread.__init__(self)
         self.save_queue = save_queue
         self.location = location
@@ -86,7 +87,7 @@ class DetectionWorker(Thread):
         self.notif_queue = notif_queue
         self.save_queue = save_queue
         # Load the Sklearn model.
-        self.model = pickle.load(open("model/SVC.p", 'rb'))
+        self.model = pickle.load(open(MODEL, 'rb'))
 
 
     def process_recording(self, signal, sr):
