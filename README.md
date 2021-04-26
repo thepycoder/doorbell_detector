@@ -32,3 +32,5 @@ Quickstart on your own data:
 
 
 TODO: add retraining code for corrected windows
+
+https://github.com/veirs/sounddevice/blob/master/Dockerfile
