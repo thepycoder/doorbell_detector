@@ -34,3 +34,9 @@ Quickstart on your own data:
 TODO: add retraining code for corrected windows
 
 https://github.com/veirs/sounddevice/blob/master/Dockerfile
+TODO:
+[] Get model server running
+[] Get dashboard running
+[] Get retraining pipeline running
+[] Update model server features
+[] Implement model hotswap in model server

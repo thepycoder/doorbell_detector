@@ -7,7 +7,13 @@ RUN apt-get update && apt-get install -y llvm-9 llvm-9-dev make g++
 COPY requirements.txt /
 RUN LLVM_CONFIG=/usr/bin/llvm-config-9 pip3 install --extra-index-url=https://www.piwheels.org/simple -r requirements.txt
 
+RUN apt-get install -y libatlas-base-dev libsndfile1-dev libportaudio2 libasound-dev
+
 COPY . /app
 WORKDIR /app
 
-ENTRYPOINT [ "python", "main.py" ]
+COPY asoundrc /root/.asoundrc
+
+ENTRYPOINT [ "python3", "main.py" ]
+# ENTRYPOINT [ "python3", "-m", "sounddevice" ]
+# ENTRYPOINT ["tail", "-F", "/dev/null"]
