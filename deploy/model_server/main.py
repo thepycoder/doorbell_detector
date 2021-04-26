@@ -18,7 +18,7 @@ import soundfile as sf
 from creds import app_token, client_token
 from config import MODEL
 
-sd.default.device = 1
+sd.default.device = 4
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 logger = logging.getLogger(__name__)
@@ -35,6 +35,7 @@ class PushWorker(Thread):
         self.last_pinged = time()
 
     def run(self):
+        logging.info('Staring Push Thread!')
         while True:
             datetimestr = self.notif_queue.get()
             if time() - self.last_pinged > 5:
@@ -53,6 +54,7 @@ class SaveWorker(Thread):
         self.sr = sr
 
     def run(self):
+        logging.info('Staring Save Thread!')
         while True:
             recording, datetimestr = self.save_queue.get()
             sf.write(os.path.join(self.location, f'{datetimestr}.wav'),
@@ -69,12 +71,14 @@ class RecordingWorker(Thread):
         self.sr = sr
 
     def run(self):
+        logging.info('Staring Recording Thread!')
         prev_time = time()
         while True:
             # logging.info(f'Elapsed Time Between recordings: {time() - prev_time}')
             # Get the work from the bell_queue and expand the tuple
             recording = sd.rec(int(self.seconds * self.sr), samplerate=self.sr, channels=1)
             sd.wait()
+            logging.info(f'Captured Recording: {recording.shape}')
             self.bell_queue.put((self.sr, recording.reshape(recording.shape[0])))
             prev_time = time()
 
@@ -98,21 +102,12 @@ class DetectionWorker(Thread):
         X = signal.T
 
         # logging.info(f'{X.shape}, {np.mean(X)}, {np.std(X)}')
-
-        stft = np.abs(librosa.stft(X))
-        mfccs = np.mean(librosa.feature.mfcc(y=X, sr=sr, n_mfcc=40).T,axis=0)
-        chroma = np.mean(librosa.feature.chroma_stft(S=stft, sr=sr).T,axis=0)
-        mel = np.mean(librosa.feature.melspectrogram(X, sr=sr).T,axis=0)
-        contrast = np.mean(librosa.feature.spectral_contrast(S=stft, sr=sr).T,axis=0)
-        # tonnetz = np.mean(librosa.feature.tonnetz(y=librosa.effects.harmonic(X), sr=sr).T,axis=0)
-
-        ext_features = np.hstack([mfccs, chroma, mel, contrast])
-
-        ext_features = np.expand_dims(ext_features, axis=0)
+        mfccs = np.mean(librosa.feature.mfcc(y=X, sr=sr, n_mfcc=13).T, axis=0)
+        ext_features = np.expand_dims(mfccs, axis=0)
         # ext_features = np.expand_dims(ext_features, axis=2)
         # ext_features = ext_features.astype(np.float32)
 
-        # logging.info(f'{ext_features.shape}, {np.mean(ext_features)}, {np.std(ext_features)}')
+        logging.info(f'{ext_features.shape}, {np.mean(ext_features)}, {np.std(ext_features)}')
 
         # classification
         pred = self.model.predict(ext_features)
@@ -123,6 +118,7 @@ class DetectionWorker(Thread):
 
 
     def run(self):
+        logging.info('Staring Detection Thread!')
         while True:
             sr, recording = self.bell_queue.get()
             start_detection = time()
@@ -130,7 +126,7 @@ class DetectionWorker(Thread):
                 class_out = self.process_recording(recording, sr)
                 logging.info(f'{class_out}')
                 datetimestr = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-                if class_out == 0:
+                if class_out == 1:
                     logging.info('Sending push notification to queue!')
                     self.notif_queue.put((datetimestr))
                     self.save_queue.put((recording, datetimestr))
@@ -153,30 +149,32 @@ def main():
     # Start processing thread first
     det_worker = DetectionWorker(bell_queue, notif_queue, save_queue)
     # Setting daemon to True will let the main thread exit even though the workers are blocking
-    det_worker.daemon = False
+    # det_worker.daemon = False
     det_worker.start()
 
     # Start recording
     rec_worker = RecordingWorker(bell_queue, 0.5, 22050)
     # Setting daemon to True will let the main thread exit even though the workers are blocking
-    rec_worker.daemon = False
+    # rec_worker.daemon = False
     rec_worker.start()
 
     # Start the push notification listener
     notif_worker = PushWorker(notif_queue)
     # Setting daemon to True will let the main thread exit even though the workers are blocking
-    notif_worker.daemon = False
+    # notif_worker.daemon = False
     notif_worker.start()
 
     # Start the saving worker which will save all bell instances
     save_worker = SaveWorker(save_queue)
     # Setting daemon to True will let the main thread exit even though the workers are blocking
-    save_worker.daemon = False
+    # save_worker.daemon = False
     save_worker.start()
 
     # Causes the main thread to wait for the bell_queue to finish processing all the tasks
-    bell_queue.join()
-    notif_queue.join()
+    det_worker.join()
+    rec_worker.join()
+    notif_worker.join()
+    save_worker.join()
 
 if __name__ == '__main__':
     main()

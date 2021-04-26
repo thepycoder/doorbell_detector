@@ -31,4 +31,9 @@ Quickstart on your own data:
     You can use `screen` to run the python script until it is deployed with docker in the next version
 
 
-TODO: add retraining code for corrected windows
+TODO:
+[] Get model server running
+[] Get dashboard running
+[] Get retraining pipeline running
+[] Update model server features
+[] Implement model hotswap in model server
