@@ -1,6 +1,15 @@
 # doorbell_detector
 An over engineered doorbell detector based on machine learning
 
+## Install
+Install docker:
+```curl -fsSL https://get.docker.com -o get-docker.sh
+sudo get-docker.sh
+```
+
+Install git, git lfs and docker compose
+`sudo apt install git git-lfs docker-compose`
+
 
 This repository is structured as follows:
 
@@ -20,7 +29,6 @@ Quickstart on your own data:
     Copy the deploy folder (also containing the trained model file now) to the raspberry pi
 
     You can use `screen` to run the python script until it is deployed with docker in the next version
-
 
 
 TODO: add retraining code for corrected windows
