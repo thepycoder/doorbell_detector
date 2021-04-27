@@ -23,15 +23,16 @@ class Pipeline:
 
 
 class NumpyDataLoader:
-    def __init__(self, path='/app/data'):
+    def __init__(self, data_path='/app/data'):
         self.path = path
 
     def run(self):
         ambient_path = os.path.join(self.path, 'ambient_data.npy')
         bell_path = os.path.join(self.path, 'bell_data.npy')
-
         ambient_data = np.load(open(ambient_path, 'rb'))
         bell_data = np.load(open(bell_path, 'rb'))
+
+        ambient_labeled = 
 
         features = np.vstack([bell_data, ambient_data])
         labels = np.vstack([1]*len(bell_data) + [0]*len(ambient_data))
@@ -44,7 +45,7 @@ class MFCCs:
         self.sr = sr
 
     def run(self, data):
-        mfccs = np.array([np.mean(librosa.feature.mfcc(y=entry, sr=sr, n_mfcc=13).T, axis=0)
+        mfccs = np.array([np.mean(librosa.feature.mfcc(y=librosa.util.normalize(entry), sr=sr, n_mfcc=13).T, axis=0)
                           for entry in data])
         return mfccs
 

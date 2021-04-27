@@ -10,7 +10,19 @@ services:
     volumes:
       - "data:/app/data"
       - "models:/app/models"
+      - "unlabeled_data:/app/unlabeled_data"
+  
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    devices:
+      - "/dev/snd:/dev/snd"
+    volumes:
       - "labeled_data:/app/labeled_data"
+      - "unlabeled_data:/app/assets/unlabeled_data"
+    ports:
+      - '8000:8000'
 
 volumes:
   data:
@@ -19,12 +31,18 @@ volumes:
       type: 'none'
       o: 'bind'
       device: '/home/pi/doorbell_detector/deploy/data/original'
+  unlabeled_data:
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: '/home/pi/doorbell_detector/deploy/data/unlabeled_data/'
   labeled_data:
     driver: local
     driver_opts:
       type: 'none'
       o: 'bind'
-      device: '/home/pi/doorbell_detector/deploy/data/labeled_data'
+      device: '/home/pi/doorbell_detector/deploy/data/labeled_data/'
   models:
     driver: local
     driver_opts:
