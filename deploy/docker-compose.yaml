@@ -24,7 +24,7 @@ volumes:
     driver_opts:
       type: 'none'
       o: 'bind'
-      device: '/home/pi/doorbell_detector/deploy/data/labeled'
+      device: '/home/pi/doorbell_detector/deploy/data/labeled_data'
   models:
     driver: local
     driver_opts:
