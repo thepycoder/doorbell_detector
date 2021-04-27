@@ -3,7 +3,8 @@ An over engineered doorbell detector based on machine learning
 
 ## Install
 Install docker:
-```curl -fsSL https://get.docker.com -o get-docker.sh
+```bash
+curl -fsSL https://get.docker.com -o get-docker.sh
 sudo get-docker.sh
 ```
 
@@ -34,9 +35,10 @@ Quickstart on your own data:
 TODO: add retraining code for corrected windows
 
 https://github.com/veirs/sounddevice/blob/master/Dockerfile
+
 TODO:
-[] Get model server running
-[] Get dashboard running
-[] Get retraining pipeline running
-[] Update model server features
-[] Implement model hotswap in model server
+- [*] Get model server running
+- [ ] Get dashboard running
+- [ ] Get retraining pipeline running
+- [ ] Update model server features
+- [ ] Implement model hotswap in model server

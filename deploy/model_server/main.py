@@ -16,9 +16,11 @@ import sounddevice as sd
 import soundfile as sf
 
 from creds import app_token, client_token
-from config import MODEL
+from config import MODEL, SR, SAVE_LOCATION
 
-sd.default.device = 4
+
+
+# sd.default.device = 14
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 logger = logging.getLogger(__name__)
@@ -47,7 +49,7 @@ class PushWorker(Thread):
 
 class SaveWorker(Thread):
 
-    def __init__(self, save_queue, location='/app/labeled_data', sr=22050):
+    def __init__(self, save_queue, sr, location):
         Thread.__init__(self)
         self.save_queue = save_queue
         self.location = location
@@ -64,28 +66,47 @@ class SaveWorker(Thread):
 
 class RecordingWorker(Thread):
 
-    def __init__(self, bell_queue, seconds, sr):
+    def __init__(self, bell_queue, seconds, sr, save_queue):
         Thread.__init__(self)
         self.bell_queue = bell_queue
         self.seconds = seconds
         self.sr = sr
+        self.stream = sd.InputStream(device=None, channels=1, samplerate=self.sr, callback=self.audio_callback)
+        self.block_queue = Queue()
+        self.window_data = np.zeros((int(self.seconds * self.sr), 1))
+        self.save_queue = save_queue
+
+
+    def audio_callback(self, indata, frames, time, status):
+        """This is called (from a separate thread) for each audio block."""
+        if status:
+            print(status, file=sys.stderr)
+        # Fancy indexing with mapping creates a (necessary!) copy:
+        self.block_queue.put(indata.copy())
+
 
     def run(self):
         logging.info('Staring Recording Thread!')
         prev_time = time()
-        while True:
-            # logging.info(f'Elapsed Time Between recordings: {time() - prev_time}')
-            # Get the work from the bell_queue and expand the tuple
-            recording = sd.rec(int(self.seconds * self.sr), samplerate=self.sr, channels=1)
-            sd.wait()
-            logging.info(f'Captured Recording: {recording.shape}')
-            self.bell_queue.put((self.sr, recording.reshape(recording.shape[0])))
-            prev_time = time()
+        with self.stream:
+            while True:
+                # logging.info(f'Elapsed Time Between recordings: {time() - prev_time}')
+                # Get the work from the bell_queue and expand the tuple
+                # recording = sd.rec(int(self.seconds * self.sr), samplerate=self.sr, channels=1)
+                while not self.block_queue.empty():
+                    data = self.block_queue.get()
+                    shift = len(data)
+                    self.window_data = np.roll(self.window_data, -shift, axis=0)
+                    self.window_data[-shift:, :] = data
+                logging.info(f'Captured Recording: {self.window_data.mean(), self.window_data.shape}')
+                self.bell_queue.put((self.sr, self.window_data.reshape(self.window_data.shape[0])))
+                prev_time = time()
+                sleep(self.seconds / 2)
 
 
 class DetectionWorker(Thread):
 
-    def __init__(self, bell_queue, notif_queue, save_queue):
+    def __init__(self, bell_queue, notif_queue):
         Thread.__init__(self)
         self.bell_queue = bell_queue
         self.notif_queue = notif_queue
@@ -101,11 +122,8 @@ class DetectionWorker(Thread):
             return -1, -1, -1
         X = signal.T
 
-        # logging.info(f'{X.shape}, {np.mean(X)}, {np.std(X)}')
-        mfccs = np.mean(librosa.feature.mfcc(y=X, sr=sr, n_mfcc=13).T, axis=0)
+        mfccs = np.mean(librosa.feature.mfcc(y=librosa.util.normalize(X), sr=sr, n_mfcc=13).T, axis=0)
         ext_features = np.expand_dims(mfccs, axis=0)
-        # ext_features = np.expand_dims(ext_features, axis=2)
-        # ext_features = ext_features.astype(np.float32)
 
         logging.info(f'{ext_features.shape}, {np.mean(ext_features)}, {np.std(ext_features)}')
 
@@ -153,7 +171,7 @@ def main():
     det_worker.start()
 
     # Start recording
-    rec_worker = RecordingWorker(bell_queue, 0.5, 22050)
+    rec_worker = RecordingWorker(bell_queue, 0.5, SR)
     # Setting daemon to True will let the main thread exit even though the workers are blocking
     # rec_worker.daemon = False
     rec_worker.start()
@@ -165,7 +183,7 @@ def main():
     notif_worker.start()
 
     # Start the saving worker which will save all bell instances
-    save_worker = SaveWorker(save_queue)
+    save_worker = SaveWorker(save_queue, SR, location=SAVE_LOCATION)
     # Setting daemon to True will let the main thread exit even though the workers are blocking
     # save_worker.daemon = False
     save_worker.start()
