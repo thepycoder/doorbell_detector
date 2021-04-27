@@ -20,7 +20,7 @@ from config import MODEL, SR, SAVE_LOCATION
 
 
 
-# sd.default.device = 14
+sd.default.device = 1
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class RecordingWorker(Thread):
         self.bell_queue = bell_queue
         self.seconds = seconds
         self.sr = sr
-        self.stream = sd.InputStream(device=None, channels=1, samplerate=self.sr, callback=self.audio_callback)
+        self.stream = sd.InputStream(channels=1, samplerate=self.sr, callback=self.audio_callback)
         self.block_queue = Queue()
         self.window_data = np.zeros((int(self.seconds * self.sr), 1))
         self.save_queue = save_queue
@@ -110,7 +110,6 @@ class DetectionWorker(Thread):
         Thread.__init__(self)
         self.bell_queue = bell_queue
         self.notif_queue = notif_queue
-        self.save_queue = save_queue
         # Load the Sklearn model.
         self.model = pickle.load(open(MODEL, 'rb'))
 
@@ -165,7 +164,7 @@ def main():
     save_queue = Queue()
 
     # Start processing thread first
-    det_worker = DetectionWorker(bell_queue, notif_queue, save_queue)
+    det_worker = DetectionWorker(bell_queue, notif_queue)
     # Setting daemon to True will let the main thread exit even though the workers are blocking
     # det_worker.daemon = False
     det_worker.start()
