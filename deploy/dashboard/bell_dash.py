@@ -68,6 +68,22 @@ APP.layout = html.Div([
             html.Div(children=generate_clips(), id='clips'),
             dbc.Button('Save labels', id='save_btn', color="primary", className="mr-1")
         ], width={"size": 6, "offset": 0})),
+        dbc.Col([
+            dbc.Button('Trigger Retraining', id='training_btn', color="primary", className="mr-1"),
+            dbc.Alert(
+                "Training Successfully started!",
+                id="alert-good",
+                is_open=False,
+                duration=4000,
+            ),
+            dbc.Alert(
+                "Something went wrong in retraining!",
+                id="alert-bad",
+                is_open=False,
+                duration=4000,
+            ),
+            dbc.Button('RQ dashboard', id='rq_btn', color="secondary", className="mr-1")
+        ], width={"size": 6, "offset": 0}))
     html.Div(id='test')
 ])
 
@@ -96,6 +112,19 @@ def update_output_div(_, values):
                             os.path.join(AMBIENT_FOLDER, filename))
             print(f'File {files[i]} is {value}')
     return generate_clips()
+
+
+@APP.callback(
+    [Output('alert-good', 'is_open'),
+     Output('alert-bad', 'is_open')],
+    [Input('training_btn', 'n_clicks')]
+)
+def trigger_training(_):
+    response = requests.post('http://retraining/start_retraining')
+    if response.status_code == 201:
+        return True, False
+    else:
+        return False, True
 
 if __name__ == '__main__':
     APP.run_server(host='0.0.0.0', debug=False)

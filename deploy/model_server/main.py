@@ -1,25 +1,22 @@
+import hashlib
 import logging
 import os
+import pickle
+import sys
+from datetime import datetime, timedelta
 from queue import Queue
 from threading import Thread
-from time import time, sleep
-from datetime import datetime
-import sys
+from time import sleep, time
 
 import librosa
 import numpy as np
 import requests
-import pickle
-
-from pushover import init, Client
-
 import sounddevice as sd
 import soundfile as sf
+from pushover import Client, init
 
+from config import MODEL, SAVE_LOCATION, SR
 from creds import app_token, client_token
-from config import MODEL, SR, SAVE_LOCATION
-
-
 
 # sd.default.device = 1
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(thread)d - %(message)s')
@@ -80,7 +77,7 @@ class RecordingWorker(Thread):
     def audio_callback(self, indata, frames, time, status):
         """This is called (from a separate thread) for each audio block."""
         if status:
-            logging.info(status, file=sys.stderr)
+            logging.warning(status)
         # Fancy indexing with mapping creates a (necessary!) copy:
         self.block_queue.put(indata.copy())
 
@@ -101,7 +98,7 @@ class RecordingWorker(Thread):
                     self.window_data[-shift:, :] = data
                     self.block_queue.task_done()
                 datetimestr = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-                logging.info(f'Putting current window in queue! {datetimestr}')
+                logging.debug(f'Putting current window in queue! {datetimestr}')
                 self.bell_queue.put((self.sr, self.window_data.reshape(self.window_data.shape[0]), datetimestr))
                 prev_time = time()
                 sleep(self.seconds / 2)
@@ -116,6 +113,10 @@ class DetectionWorker(Thread):
         self.save_queue = save_queue
         # Load the Sklearn model.
         self.model = pickle.load(open(MODEL, 'rb'))
+        self.model_hash = hashlib.md5(open(MODEL,'rb').read()).hexdigest()
+        logging.info(f'Loaded model with hash: {self.model_hash}')
+        self.last_updated = datetime.now()
+        self.model_check_interval = 1  # minutes
 
 
     def process_recording(self, signal, sr):
@@ -128,7 +129,7 @@ class DetectionWorker(Thread):
         mfccs = np.mean(librosa.feature.mfcc(y=librosa.util.normalize(X), sr=sr, n_mfcc=13).T, axis=0)
         ext_features = np.expand_dims(mfccs, axis=0)
 
-        logging.info(f'{ext_features.shape}, {np.mean(ext_features)}, {np.std(ext_features)}')
+        logging.debug(f'{ext_features.shape}, {np.mean(ext_features)}, {np.std(ext_features)}')
 
         # classification
         pred = self.model.predict(ext_features)
@@ -136,27 +137,38 @@ class DetectionWorker(Thread):
         # logging.info(f'Pred: {pred}')
 
         return pred[0]
+    
+    def update_model_if_new(self):
+        new_model_hash = hashlib.md5(open(MODEL, 'rb').read()).hexdigest()
+        if new_model_hash != self.model_hash:
+            logging.info('New model version detected! Updating model now.')
+            self.model = pickle.load(open(MODEL, 'rb'))
+            self.model_hash = new_model_hash
+            logging.info(f'Loaded model with hash: {self.model_hash}')
 
 
     def run(self):
         logging.info('Staring Detection Thread!')
+        loop_count = 0
         while True:
             logging.debug(f'Detection Q length: {self.bell_queue.qsize()}')
             sr, recording, recording_ts = self.bell_queue.get()
             start_detection = time()
             try:
-                logging.info(f'processing recording @ {recording_ts}')
+                logging.debug(f'processing recording @ {recording_ts}')
                 class_out = self.process_recording(recording, sr)
-                logging.info(f'{class_out}')
+                logging.debug(f'{class_out}')
                 datetimestr = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
                 if class_out == 1:
-                    logging.info('Sending push notification to queue!')
+                    logging.info('Bell detected!! Sending push notification to queue.')
                     self.notif_queue.put((datetimestr))
                     self.save_queue.put((recording, datetimestr))
             except Exception as e:
-                logging.info(e)
+                logging.error(e)
             finally:
                 self.bell_queue.task_done()
+                if datetime.now() - self.last_updated > timedelta(minutes=self.model_check_interval):
+                    self.update_model_if_new()
             # logging.info(f'Elapsed Detection Time: {time() - start_detection}')
             # logging.info(f'Queue size: {self.bell_queue.qsize()}')
 

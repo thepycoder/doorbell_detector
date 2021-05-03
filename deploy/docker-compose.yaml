@@ -8,7 +8,7 @@ services:
     devices:
       - "/dev/snd:/dev/snd"
     volumes:
-      - "data:/app/data"
+      - "original_data:/app/original_data"
       - "models:/app/models"
       - "unlabeled_data:/app/unlabeled_data"
   
@@ -23,14 +23,29 @@ services:
       - "unlabeled_data:/app/assets/unlabeled_data"
     ports:
       - '8000:8000'
+  
+  retraining:
+    build:
+      context: ./retraining
+      dockerfile: Dockerfile
+    depends_on:
+      - redis
+    volumes:
+      - "labeled_data:/app/labeled_data"
+      - "unlabeled_data:/app/original_data"
+    ports:
+      - "80:80"
+  
+  redis:
+    image: redis
 
 volumes:
-  data:
+  original_data:
     driver: local
     driver_opts:
       type: 'none'
       o: 'bind'
-      device: '/home/pi/doorbell_detector/deploy/data/original'
+      device: '/home/pi/doorbell_detector/deploy/data/original_data'
   unlabeled_data:
     driver: local
     driver_opts:

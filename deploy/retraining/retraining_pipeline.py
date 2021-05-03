@@ -52,10 +52,13 @@ class Pipeline:
         print(f'New model is better: {is_better}')
         if is_better:
             print('Symlinking new model')
-            latest_path = os.path.join(MODEL_PATH, 'latest.p')
+            old_cwd = os.getcwd()
+            os.chdir(MODEL_PATH)
+            latest_path = 'latest.p'
             if os.path.lexists(latest_path):
                 os.unlink(latest_path)
-            os.symlink(os.path.join(MODEL_PATH, model_name), latest_path)
+            os.symlink(model_name, latest_path)
+            os.chdir(old_cwd)
 
         print('Done!')
 
@@ -202,6 +205,10 @@ class ModelSaver:
         return model_name
 
 
-if __name__ == '__main__':
+def run_pipeline():
     pipeline = Pipeline()
     pipeline.run()
+
+
+if __name__ == '__main__':
+    run_pipeline()
