@@ -7,9 +7,11 @@ RUN apt-get update && apt-get install -y llvm-9 llvm-9-dev make g++
 COPY requirements.txt /
 RUN LLVM_CONFIG=/usr/bin/llvm-config-9 pip3 install --extra-index-url=https://www.piwheels.org/simple -r requirements.txt
 
-RUN apt-get install -y libatlas-base-dev
+RUN apt-get install -y libatlas-base-dev libsndfile1-dev
 
 COPY . /app
 WORKDIR /app
 
-CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "80"]
+ENV CONTAINER=True
+
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -10,12 +10,14 @@ from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, confusion_matrix
+from rq import get_current_job
 
 from config import ORIGINAL_DATA_PATH, LABELED_DATA_PATH, MODEL_PATH
 
 
 class Pipeline:
-    def __init__(self):
+    def __init__(self, rq_job_obj):
+        self.job = rq_job_obj
         self.data_loader = NumpyDataLoader()
         self.feature_calculator = MFCCs()
         self.pre_processor = TrainTestSplit()
@@ -24,34 +26,46 @@ class Pipeline:
         self.model_loader = ModelLoader()
         self.model_comparison = BasicComparison()
         self.model_saver = ModelSaver()
+    
+    def log_progress(self, message):
+        self.job.meta['progress'] = message
+        self.job.save_meta()
 
     def run(self):
-        print('Loading data')
+        self.log_progress('Loading data')
+
         data, labels = self.data_loader.run()
-        print('Calculating features')
+        self.log_progress('Calculating features')
+
         features = self.feature_calculator.run(data)
-        print('Preprocessing')
+        self.log_progress('Preprocessing')
+
         X_train, X_test, y_train, y_test = self.pre_processor.run(features, labels)
-        print('Training new model')
+        self.log_progress('Training new model')
+
         new_model = self.trainer.run(X_train, X_test, y_train, y_test)
-        print('Loading old model')
+        self.log_progress('Loading old model')
+
         old_model = self.model_loader.run()
         
         if not old_model:
             is_better = True
         else:
-            print('Benchmarking both models')
+            self.log_progress('Benchmarking both models')
             new_predictions = self.model_runner.run(X_test, new_model)
             old_predictions = self.model_runner.run(X_test, old_model)
 
             is_better = self.model_comparison.run(y_test, old_predictions, new_predictions)
 
-        print('Saving new model')
+        self.log_progress('Saving new model')
+
         model_name = self.model_saver.run(new_model)
 
-        print(f'New model is better: {is_better}')
+        self.log_progress(f'New model is better: {is_better}')
+
         if is_better:
-            print('Symlinking new model')
+            self.log_progress('Symlinking new model')
+
             old_cwd = os.getcwd()
             os.chdir(MODEL_PATH)
             latest_path = 'latest.p'
@@ -60,7 +74,7 @@ class Pipeline:
             os.symlink(model_name, latest_path)
             os.chdir(old_cwd)
 
-        print('Done!')
+        self.log_progress('Done!')
 
 
 class NumpyDataLoader:
@@ -206,7 +220,8 @@ class ModelSaver:
 
 
 def run_pipeline():
-    pipeline = Pipeline()
+    self_job = get_current_job()
+    pipeline = Pipeline(self_job)
     pipeline.run()
 
 

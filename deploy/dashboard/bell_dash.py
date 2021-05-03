@@ -1,18 +1,22 @@
 import os
 import shutil
 import socket
+import logging
+import requests
 
 import dash
 import rq_dashboard
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
+from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State, ALL
 
 # Create the dash app object
 APP = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 SERVER = APP.server
 SERVER.config.from_object(rq_dashboard.default_settings)
+SERVER.config['RQ_DASHBOARD_REDIS_URL'] = "redis://redis:6379"
 SERVER.register_blueprint(rq_dashboard.blueprint, url_prefix="/rq")
 
 CLIP_FOLDER = '/app/assets/unlabeled_data'
@@ -60,16 +64,20 @@ def generate_clips():
 # Use html for 1:1 html tags
 # Use dcc for more interactive stuff like button and sliders
 APP.layout = html.Div([
+    dcc.Location(id='url'),
+    dcc.Interval(id='poll-timer', interval=1000),
+    dcc.Store(id='job_id'),
     dbc.Row(children=[
         dbc.Col(html.H1(children='Review doorbells'), width={"size": 4, "offset": 5})
     ]),
-    dbc.Row(
+    dbc.Row(children=[
         dbc.Col([
             html.Div(children=generate_clips(), id='clips'),
             dbc.Button('Save labels', id='save_btn', color="primary", className="mr-1")
-        ], width={"size": 6, "offset": 0})),
+        ], width={"size": 6, "offset": 0}),
         dbc.Col([
             dbc.Button('Trigger Retraining', id='training_btn', color="primary", className="mr-1"),
+            dbc.Button('RQ dashboard', id='rq_btn', color="secondary", className="mr-1"),
             dbc.Alert(
                 "Training Successfully started!",
                 id="alert-good",
@@ -82,9 +90,9 @@ APP.layout = html.Div([
                 is_open=False,
                 duration=4000,
             ),
-            dbc.Button('RQ dashboard', id='rq_btn', color="secondary", className="mr-1")
-        ], width={"size": 6, "offset": 0}))
-    html.Div(id='test')
+        ], width={"size": 6, "offset": 0}),
+        html.Div(id='test')
+    ])
 ])
 
 # Callbacks!
@@ -116,15 +124,46 @@ def update_output_div(_, values):
 
 @APP.callback(
     [Output('alert-good', 'is_open'),
-     Output('alert-bad', 'is_open')],
+     Output('alert-bad', 'is_open'),
+     Output('job_id', 'data')],
     [Input('training_btn', 'n_clicks')]
 )
-def trigger_training(_):
-    response = requests.post('http://retraining/start_retraining')
-    if response.status_code == 201:
-        return True, False
+def trigger_training(n_clicks):
+    if n_clicks:
+        response = requests.post('http://retraining_api:8080/start_retraining')
+        if response.status_code == 201:
+            return True, False, response.json()['job_id']
+        else:
+            return False, True, None
     else:
-        return False, True
+        raise PreventUpdate
+
+
+@APP.callback(
+    Output('url', 'pathname'),
+    [Input('rq_btn', 'n_clicks')]
+)
+def change_rq(n_clicks):
+    if n_clicks:
+        return '/rq'
+    else:
+        raise PreventUpdate
+
+
+@APP.callback(
+    Output('test', 'children'),
+    [Input('poll-timer', 'n_intervals')],
+    State('job_id', 'data')
+)
+def status_update(n_clicks, job_id):
+    if n_clicks and job_id:
+        response = requests.get(f'http://retraining_api:8080/status_retraining/{job_id}')
+        if response.status_code == 200:
+            return response.json()['progress']
+        else:
+            raise PreventUpdate
+    else:
+        raise PreventUpdate
 
 if __name__ == '__main__':
     APP.run_server(host='0.0.0.0', debug=False)

@@ -3,3 +3,4 @@ tqdm==4.44.1
 librosa==0.8.0
 fastapi==0.63.0
 uvicorn==0.13.4
+rq==1.8.0

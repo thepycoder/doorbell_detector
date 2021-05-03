@@ -21,10 +21,12 @@ services:
     volumes:
       - "labeled_data:/app/labeled_data"
       - "unlabeled_data:/app/assets/unlabeled_data"
+    environment:
+      - RQ_DASHBOARD_REDIS_URL=redis://redis:6379
     ports:
       - '8000:8000'
   
-  retraining:
+  retraining_api:
     build:
       context: ./retraining
       dockerfile: Dockerfile
@@ -34,7 +36,19 @@ services:
       - "labeled_data:/app/labeled_data"
       - "unlabeled_data:/app/original_data"
     ports:
-      - "80:80"
+      - "8080:8080"
+  
+  retraining_worker:
+    build:
+      context: ./retraining
+      dockerfile: Dockerfile
+    depends_on:
+      - redis
+    volumes:
+      - "labeled_data:/app/labeled_data"
+      - "original_data:/app/original_data"
+      - "models:/app/models"
+    entrypoint: rq worker --url=redis://redis:6379
   
   redis:
     image: redis
