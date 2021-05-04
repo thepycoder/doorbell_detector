@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 import pickle
 import os
 
@@ -28,6 +29,7 @@ class Pipeline:
         self.model_saver = ModelSaver()
     
     def log_progress(self, message):
+        logging.info(message)
         self.job.meta['progress'] = message
         self.job.save_meta()
 
