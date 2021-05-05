@@ -1,27 +1,25 @@
+import hashlib
 import logging
 import os
+import pickle
+import sys
+from datetime import datetime, timedelta
 from queue import Queue
 from threading import Thread
-from time import time, sleep
-from datetime import datetime
+from time import sleep, time
 
 import librosa
 import numpy as np
 import requests
-import pickle
-
-from pushover import init, Client
-
 import sounddevice as sd
 import soundfile as sf
+from pushover import Client, init
 
+from config import MODEL, SAVE_LOCATION, SR
 from creds import app_token, client_token
-from config import MODEL, SR, SAVE_LOCATION
 
-
-
-sd.default.device = 1
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# sd.default.device = 1
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(thread)d - %(message)s')
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +64,7 @@ class SaveWorker(Thread):
 
 class RecordingWorker(Thread):
 
-    def __init__(self, bell_queue, seconds, sr, save_queue):
+    def __init__(self, bell_queue, seconds, sr):
         Thread.__init__(self)
         self.bell_queue = bell_queue
         self.seconds = seconds
@@ -74,13 +72,12 @@ class RecordingWorker(Thread):
         self.stream = sd.InputStream(channels=1, samplerate=self.sr, callback=self.audio_callback)
         self.block_queue = Queue()
         self.window_data = np.zeros((int(self.seconds * self.sr), 1))
-        self.save_queue = save_queue
 
 
     def audio_callback(self, indata, frames, time, status):
         """This is called (from a separate thread) for each audio block."""
         if status:
-            print(status, file=sys.stderr)
+            logging.warning(status)
         # Fancy indexing with mapping creates a (necessary!) copy:
         self.block_queue.put(indata.copy())
 
@@ -94,24 +91,32 @@ class RecordingWorker(Thread):
                 # Get the work from the bell_queue and expand the tuple
                 # recording = sd.rec(int(self.seconds * self.sr), samplerate=self.sr, channels=1)
                 while not self.block_queue.empty():
+                    #logging.info(f'Block Q length: {self.block_queue.qsize()}')
                     data = self.block_queue.get()
                     shift = len(data)
                     self.window_data = np.roll(self.window_data, -shift, axis=0)
                     self.window_data[-shift:, :] = data
-                logging.info(f'Captured Recording: {self.window_data.mean(), self.window_data.shape}')
-                self.bell_queue.put((self.sr, self.window_data.reshape(self.window_data.shape[0])))
+                    self.block_queue.task_done()
+                datetimestr = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+                logging.debug(f'Putting current window in queue! {datetimestr}')
+                self.bell_queue.put((self.sr, self.window_data.reshape(self.window_data.shape[0]), datetimestr))
                 prev_time = time()
                 sleep(self.seconds / 2)
 
 
 class DetectionWorker(Thread):
 
-    def __init__(self, bell_queue, notif_queue):
+    def __init__(self, bell_queue, notif_queue, save_queue):
         Thread.__init__(self)
         self.bell_queue = bell_queue
         self.notif_queue = notif_queue
+        self.save_queue = save_queue
         # Load the Sklearn model.
         self.model = pickle.load(open(MODEL, 'rb'))
+        self.model_hash = hashlib.md5(open(MODEL,'rb').read()).hexdigest()
+        logging.info(f'Loaded model with hash: {self.model_hash}')
+        self.last_updated = datetime.now()
+        self.model_check_interval = 1  # minutes
 
 
     def process_recording(self, signal, sr):
@@ -124,7 +129,7 @@ class DetectionWorker(Thread):
         mfccs = np.mean(librosa.feature.mfcc(y=librosa.util.normalize(X), sr=sr, n_mfcc=13).T, axis=0)
         ext_features = np.expand_dims(mfccs, axis=0)
 
-        logging.info(f'{ext_features.shape}, {np.mean(ext_features)}, {np.std(ext_features)}')
+        logging.debug(f'{ext_features.shape}, {np.mean(ext_features)}, {np.std(ext_features)}')
 
         # classification
         pred = self.model.predict(ext_features)
@@ -132,25 +137,38 @@ class DetectionWorker(Thread):
         # logging.info(f'Pred: {pred}')
 
         return pred[0]
+    
+    def update_model_if_new(self):
+        new_model_hash = hashlib.md5(open(MODEL, 'rb').read()).hexdigest()
+        if new_model_hash != self.model_hash:
+            logging.info('New model version detected! Updating model now.')
+            self.model = pickle.load(open(MODEL, 'rb'))
+            self.model_hash = new_model_hash
+            logging.info(f'Loaded model with hash: {self.model_hash}')
 
 
     def run(self):
         logging.info('Staring Detection Thread!')
+        loop_count = 0
         while True:
-            sr, recording = self.bell_queue.get()
+            logging.debug(f'Detection Q length: {self.bell_queue.qsize()}')
+            sr, recording, recording_ts = self.bell_queue.get()
             start_detection = time()
             try:
+                logging.debug(f'processing recording @ {recording_ts}')
                 class_out = self.process_recording(recording, sr)
-                logging.info(f'{class_out}')
+                logging.debug(f'{class_out}')
                 datetimestr = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
                 if class_out == 1:
-                    logging.info('Sending push notification to queue!')
+                    logging.info('Bell detected!! Sending push notification to queue.')
                     self.notif_queue.put((datetimestr))
                     self.save_queue.put((recording, datetimestr))
             except Exception as e:
-                print(e)
+                logging.error(e)
             finally:
                 self.bell_queue.task_done()
+                if datetime.now() - self.last_updated > timedelta(minutes=self.model_check_interval):
+                    self.update_model_if_new()
             # logging.info(f'Elapsed Detection Time: {time() - start_detection}')
             # logging.info(f'Queue size: {self.bell_queue.qsize()}')
 
@@ -164,7 +182,7 @@ def main():
     save_queue = Queue()
 
     # Start processing thread first
-    det_worker = DetectionWorker(bell_queue, notif_queue)
+    det_worker = DetectionWorker(bell_queue, notif_queue, save_queue)
     # Setting daemon to True will let the main thread exit even though the workers are blocking
     # det_worker.daemon = False
     det_worker.start()

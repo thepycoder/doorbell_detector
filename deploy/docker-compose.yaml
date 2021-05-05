@@ -8,23 +8,70 @@ services:
     devices:
       - "/dev/snd:/dev/snd"
     volumes:
-      - "data:/app/data"
+      - "original_data:/app/original_data"
       - "models:/app/models"
+      - "unlabeled_data:/app/unlabeled_data"
+  
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    devices:
+      - "/dev/snd:/dev/snd"
+    volumes:
       - "labeled_data:/app/labeled_data"
+      - "unlabeled_data:/app/assets/unlabeled_data"
+    environment:
+      - RQ_DASHBOARD_REDIS_URL=redis://redis:6379
+    ports:
+      - '8000:8000'
+  
+  retraining_api:
+    build:
+      context: ./retraining
+      dockerfile: Dockerfile
+    depends_on:
+      - redis
+    volumes:
+      - "labeled_data:/app/labeled_data"
+      - "unlabeled_data:/app/original_data"
+    ports:
+      - "8080:8080"
+  
+  retraining_worker:
+    build:
+      context: ./retraining
+      dockerfile: Dockerfile
+    depends_on:
+      - redis
+    volumes:
+      - "labeled_data:/app/labeled_data"
+      - "original_data:/app/original_data"
+      - "models:/app/models"
+    entrypoint: rq worker --url=redis://redis:6379
+  
+  redis:
+    image: redis
 
 volumes:
-  data:
+  original_data:
     driver: local
     driver_opts:
       type: 'none'
       o: 'bind'
-      device: '/home/pi/doorbell_detector/deploy/data/original'
+      device: '/home/pi/doorbell_detector/deploy/data/original_data'
+  unlabeled_data:
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: '/home/pi/doorbell_detector/deploy/data/unlabeled_data/'
   labeled_data:
     driver: local
     driver_opts:
       type: 'none'
       o: 'bind'
-      device: '/home/pi/doorbell_detector/deploy/data/labeled'
+      device: '/home/pi/doorbell_detector/deploy/data/labeled_data/'
   models:
     driver: local
     driver_opts:
