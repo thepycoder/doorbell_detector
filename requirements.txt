@@ -16,7 +16,6 @@ dash-core-components==1.9.1
 dash-html-components==1.0.3
 dash-renderer==1.4.0
 dash-table==4.6.2
-dataclasses==0.8
 decorator==4.4.2
 deprecation==2.1.0
 eyeD3==0.8.12
