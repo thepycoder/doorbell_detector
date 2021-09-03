@@ -40,7 +40,7 @@ class PushWorker(Thread):
             datetimestr = self.notif_queue.get()
             if time() - self.last_pinged > 5:
                 for client in self.members:
-                    client.send_message(f'<ENTER MESSAGE>')
+                    client.send_message(f'Newline Rocks BBY!')
                 self.last_pinged = time()
             self.notif_queue.task_done()
 

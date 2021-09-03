@@ -59,22 +59,22 @@ volumes:
     driver_opts:
       type: 'none'
       o: 'bind'
-      device: '/home/pi/doorbell_detector/deploy/data/original_data'
+      device: '/home/victor/Projects/doorbell_detector/deploy/data/original_data'
   unlabeled_data:
     driver: local
     driver_opts:
       type: 'none'
       o: 'bind'
-      device: '/home/pi/doorbell_detector/deploy/data/unlabeled_data/'
+      device: '/home/victor/Projects/doorbell_detector/deploy/data/unlabeled_data/'
   labeled_data:
     driver: local
     driver_opts:
       type: 'none'
       o: 'bind'
-      device: '/home/pi/doorbell_detector/deploy/data/labeled_data/'
+      device: '/home/victor/Projects/doorbell_detector/deploy/data/labeled_data/'
   models:
     driver: local
     driver_opts:
       type: 'none'
       o: 'bind'
-      device: '/home/pi/doorbell_detector/deploy/models'
+      device: '/home/victor/Projects/doorbell_detector/deploy/models'
