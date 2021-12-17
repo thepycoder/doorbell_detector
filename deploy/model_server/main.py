@@ -40,11 +40,7 @@ class PushWorker(Thread):
             datetimestr = self.notif_queue.get()
             if time() - self.last_pinged > 5:
                 for client in self.members:
-                    client.send_message(f'http://192.168.0.135:8000/assets/unlabeled_data/{datetimestr}.wav')
-                try:
-                    requests.get('http://192.168.0.205/bell')
-                except requests.exceptions.RequestException as e:
-                    logging.warning(f'Cannot connect to IP of ESP32, error: {e}')
+                    client.send_message(f'Newline Rocks BBY!')
                 self.last_pinged = time()
             self.notif_queue.task_done()
 

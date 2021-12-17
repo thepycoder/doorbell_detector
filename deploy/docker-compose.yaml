@@ -2,7 +2,6 @@ version: "2.3"
 
 services:
   model_server:
-    restart: on-failure
     build:
       context: ./model_server
       dockerfile: Dockerfile
@@ -14,7 +13,6 @@ services:
       - "unlabeled_data:/app/unlabeled_data"
   
   dashboard:
-    restart: on-failure
     build:
       context: ./dashboard
       dockerfile: Dockerfile
@@ -29,7 +27,6 @@ services:
       - '8000:8000'
   
   retraining_api:
-    restart: on-failure
     build:
       context: ./retraining
       dockerfile: Dockerfile
@@ -42,7 +39,6 @@ services:
       - "8080:8080"
   
   retraining_worker:
-    restart: on-failure
     build:
       context: ./retraining
       dockerfile: Dockerfile
@@ -55,7 +51,6 @@ services:
     entrypoint: rq worker --url=redis://redis:6379
   
   redis:
-    restart: on-failure
     image: redis
 
 volumes:

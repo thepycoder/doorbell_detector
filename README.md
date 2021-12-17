@@ -1,4 +1,4 @@
-# doorbell_detector
+# Doorbell Detector
 An over engineered doorbell detector based on machine learning
 
 ## Install
@@ -38,7 +38,7 @@ https://github.com/veirs/sounddevice/blob/master/Dockerfile
 
 TODO:
 - [*] Get model server running
-- [ ] Get dashboard running
-- [ ] Get retraining pipeline running
+- [*] Get dashboard running
+- [*] Get retraining pipeline running
 - [*] Update model server features
-- [ ] Implement model hotswap in model server
+- [*] Implement model hotswap in model server
