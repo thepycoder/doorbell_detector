@@ -1,6 +1,9 @@
 creds.py
 __pycache__
 .vscode
-*.wav
+split_data
+experiments
 .venv
 *.p
+*.wav
+
