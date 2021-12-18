@@ -5,3 +5,4 @@ split_data
 experiments
 .venv
 *.p
+*.wav

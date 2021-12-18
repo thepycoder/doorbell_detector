@@ -5,6 +5,6 @@ if os.environ.get('CONTAINER'):
     LABELED_DATA_PATH='/app/labeled_data'
     MODEL_PATH='/app/models'
 else:
-    ORIGINAL_DATA_PATH='/home/pi/doorbell_detector/deploy/data/original_data'
-    LABELED_DATA_PATH='/home/pi/doorbell_detector/deploy/data/labeled_data'
-    MODEL_PATH='/home/pi/doorbell_detector/deploy/models'
+    ORIGINAL_DATA_PATH='deploy/data/original_data'
+    LABELED_DATA_PATH='deploy/data/labeled_data'
+    MODEL_PATH='models'
